@@ -1,12 +1,10 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-// Types de base pour le kernel
 #ifndef __KERNEL_TYPES_DEFINED__
 #define __KERNEL_TYPES_DEFINED__
 
 #ifdef __APPLE__
-// Sur macOS, utiliser les types standards
 #include <stdint.h>
 #include <stddef.h>
 typedef uint8_t u8;

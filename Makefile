@@ -92,12 +92,55 @@ bootloader: $(BUILD_DIR)/boot.o | $(BUILD_DIR)
 $(BUILD_DIR)/kernel_simple.o: kernel/kernel_simple.c | $(BUILD_DIR)
 	x86_64-elf-gcc -m32 -fno-builtin -fno-stack-protector -nostdlib -c $< -o $@
 
-$(BUILD_DIR)/kernel_simple.elf: $(BUILD_DIR)/kernel_simple.o | $(BUILD_DIR)
-	x86_64-elf-ld -m elf_i386 -T multiboot.ld -o $@ $<
+$(BUILD_DIR)/syscalls.o: kernel/syscalls.c | $(BUILD_DIR)
+	x86_64-elf-gcc -m32 -fno-builtin -fno-stack-protector -nostdlib -c $< -o $@
 
-# Lancer QEMU avec le kernel simple
-qemu: $(BUILD_DIR)/kernel_simple.elf
-	qemu-system-i386 -kernel $< -m 32M
+$(BUILD_DIR)/syscall_test.o: kernel/syscall_test.c | $(BUILD_DIR)
+	x86_64-elf-gcc -m32 -fno-builtin -fno-stack-protector -nostdlib -c $< -o $@
+
+$(BUILD_DIR)/vfs.o: fs/vfs.c | $(BUILD_DIR)
+	x86_64-elf-gcc -m32 -fno-builtin -fno-stack-protector -nostdlib -c $< -o $@
+
+$(BUILD_DIR)/vfs_test.o: fs/vfs_test.c | $(BUILD_DIR)
+	x86_64-elf-gcc -m32 -fno-builtin -fno-stack-protector -nostdlib -c $< -o $@
+
+$(BUILD_DIR)/shell.o: kernel/shell.c | $(BUILD_DIR)
+	x86_64-elf-gcc -m32 -fno-builtin -fno-stack-protector -nostdlib -c $< -o $@
+
+$(BUILD_DIR)/kernel_simple.elf: $(BUILD_DIR)/kernel_simple.o $(BUILD_DIR)/syscalls.o $(BUILD_DIR)/syscall_test.o $(BUILD_DIR)/shell.o | $(BUILD_DIR)
+	x86_64-elf-ld -m elf_i386 -T multiboot.ld -o $@ $^
+
+$(BUILD_DIR)/kernel_simple.bin: $(BUILD_DIR)/kernel_simple.elf | $(BUILD_DIR)
+	x86_64-elf-objcopy -O binary $< $@
+
+# Compiler le bootloader Multiboot
+$(BUILD_DIR)/multiboot_boot.o: boot/multiboot_boot.s | $(BUILD_DIR)
+	x86_64-elf-as --32 $< -o $@
+
+# Créer le kernel avec bootloader intégré
+$(BUILD_DIR)/kernel_multiboot.elf: $(BUILD_DIR)/multiboot_boot.o $(BUILD_DIR)/kernel_simple.o $(BUILD_DIR)/syscalls.o $(BUILD_DIR)/syscall_test.o $(BUILD_DIR)/shell.o | $(BUILD_DIR)
+	x86_64-elf-ld -m elf_i386 -T multiboot.ld -o $@ $^
+
+# Créer l'image ISO bootable
+iso: $(BUILD_DIR)/kernel_multiboot.elf | $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/isodir/boot/grub
+	cp $< $(BUILD_DIR)/isodir/boot/kernel.elf
+	echo 'set timeout=0' > $(BUILD_DIR)/isodir/boot/grub/grub.cfg
+	echo 'set default=0' >> $(BUILD_DIR)/isodir/boot/grub/grub.cfg
+	echo '' >> $(BUILD_DIR)/isodir/boot/grub/grub.cfg
+	echo 'menuentry "ACE Kernel" {' >> $(BUILD_DIR)/isodir/boot/grub/grub.cfg
+	echo '    multiboot /boot/kernel.elf' >> $(BUILD_DIR)/isodir/boot/grub/grub.cfg
+	echo '    boot' >> $(BUILD_DIR)/isodir/boot/grub/grub.cfg
+	echo '}' >> $(BUILD_DIR)/isodir/boot/grub/grub.cfg
+	i686-elf-grub-mkrescue -o $(BUILD_DIR)/ace_kernel.iso $(BUILD_DIR)/isodir
+
+# Lancer QEMU avec le kernel Multiboot
+qemu: $(BUILD_DIR)/kernel_multiboot.elf
+	qemu-system-i386 -kernel $< -nographic
+
+# Lancer QEMU avec l'image ISO
+qemu-iso: $(BUILD_DIR)/ace_kernel.iso
+	qemu-system-i386 -cdrom $< -nographic
 
 # Version simplifiée - exécuter directement sur macOS
 run: kernel
