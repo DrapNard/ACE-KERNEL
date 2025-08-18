@@ -192,4 +192,4 @@ Les contributions sont les bienvenues ! Merci de :
 
 ---
 
-**ACE Micro-Kernel** - Un kernel simple mais fonctionnel pour l'apprentissage des systèmes d'exploitation.# ACE-KERNEL
+**ACE Micro-Kernel** - Un kernel simple mais fonctionnel pour l'apprentissage des systèmes d'exploitation.
