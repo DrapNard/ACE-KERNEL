@@ -1,5 +1,7 @@
 # ACE Micro-Kernel
 
+![Capture d’écran 2025-03-08 à 22 33 33](https://github.com/DALM1/ACE-KERNEL/blob/main/ACE-1.png)
+
 Un micro-kernel fonctionnel basé sur une architecture x86, développé en C et assembleur.
 
 ## Caractéristiques
