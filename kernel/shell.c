@@ -2,6 +2,7 @@
 #include "../include/vga.h"
 #include "../include/syscalls.h"
 #include "../include/vfs.h"
+#include "../include/keyboard.h"
 
 static shell_state_t shell_state;
 static shell_command_t commands[MAX_COMMANDS];
@@ -65,38 +66,22 @@ void shell_clear_buffer() {
 void shell_run() {
     vga_print("\n=== Shell ACE ===\n");
     vga_print("Tapez 'help' pour voir les commandes disponibles\n\n");
-
-    vga_print("Commandes disponibles\n");
-    cmd_help(0, 0);
-
-    vga_print("\nDemo - Execution automatique de quelques commandes:\n\n");
-
-    shell_print_prompt();
-    vga_print("help\n");
-    cmd_help(0, 0);
-
-    vga_print("\n");
-    shell_print_prompt();
-    vga_print("ls\n");
-    cmd_ls(0, 0);
-
-    vga_print("\n");
-    shell_print_prompt();
-    vga_print("mem\n");
-    cmd_mem(0, 0);
-
-    vga_print("\n");
-    shell_print_prompt();
-    vga_print("ps\n");
-    cmd_ps(0, 0);
-
-    vga_print("\n");
-    shell_print_prompt();
-    vga_print("uptime\n");
-    cmd_uptime(0, 0);
-
-    vga_print("\n\nShell ACE - Demo terminee\n");
-    vga_print("Note: Driver clavier non implemente pour l'interaction\n");
+    
+    char input_buffer[256];
+    
+    while (1) {
+        shell_print_prompt();
+        
+        // Lire une ligne de commande avec le driver clavier
+        int len = keyboard_readline(input_buffer, sizeof(input_buffer));
+        
+        if (len > 0) {
+            vga_print("\n");
+            shell_execute_command(input_buffer);
+        }
+        
+        vga_print("\n");
+    }
 
     // Retour au kernel principal
     return;

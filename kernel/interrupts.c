@@ -116,14 +116,22 @@ void disable_interrupts(void) {
 
 // Gestionnaire d'interruption par défaut
 void default_interrupt_handler(struct interrupt_frame* frame) {
-    if (frame->int_no < IDT_SIZE && interrupt_handlers[frame->int_no]) {
-        interrupt_handlers[frame->int_no](frame);
+    (void)frame; // Éviter le warning unused parameter
+    
+    // Afficher des informations sur l'interruption
+    vga_print("Interruption recue: ");
+    
+    // Simuler l'affichage du numéro d'interruption
+    if (frame->int_no < 32) {
+        vga_print("Exception [CRITIQUE]\n");
+        
+        // En cas d'exception critique, arrêter le système
+        vga_print("Arret du systeme\n");
+        while (1) {
+            __asm__ volatile ("hlt");
+        }
     } else {
-        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-        vga_print("Interruption non gérée: ");
-        // Dans un vrai kernel, on afficherait le numéro
-        vga_print("\n");
-        vga_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+        vga_print("Interruption non geree: INT [ERREUR]\n");
     }
     
     // Acquitter l'interruption si c'est une IRQ
@@ -140,39 +148,16 @@ void timer_interrupt_handler(struct interrupt_frame* frame) {
     (void)frame; // Éviter le warning unused parameter
     timer_ticks++;
     
-    // Exécuter l'ordonnanceur tous les 10 ticks
-    if (timer_ticks % 10 == 0) {
-        scheduler_run();
-    }
+    // Le scheduler sera implémenté plus tard
+    // if (timer_ticks % 10 == 0) {
+    //     scheduler_run();
+    // }
     
     // Acquitter l'interruption
     outb(PIC1_COMMAND, 0x20);
 }
 
-// Gestionnaire d'interruption du clavier
-void keyboard_interrupt_handler(struct interrupt_frame* frame) {
-    (void)frame; // Éviter le warning unused parameter
-    u8 scancode = inb(0x60); // Lire le scancode
-    
-    // Table de conversion simplifiée (touches principales)
-    static char keymap[128] = {
-        0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-        '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
-        0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0,
-        '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' '
-    };
-    
-    // Si c'est une pression de touche (bit 7 = 0)
-    if (!(scancode & 0x80) && scancode < 128) {
-        char key = keymap[scancode];
-        if (key) {
-            vga_putchar(key);
-        }
-    }
-    
-    // Acquitter l'interruption
-    outb(PIC1_COMMAND, 0x20);
-}
+// Le gestionnaire clavier est maintenant dans drivers/keyboard.c
 
 // Stubs assembleur simplifiés (normalement dans un fichier .s séparé)
 // Ces fonctions devraient être implémentées en assembleur

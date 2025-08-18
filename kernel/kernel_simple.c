@@ -70,6 +70,8 @@ void syscall_init();
 void test_syscalls();
 void shell_init();
 void shell_run();
+void interrupts_init();
+void keyboard_init();
 
 void kernel_main() {
     vga_clear();
@@ -79,7 +81,13 @@ void kernel_main() {
 
     vga_print("VGA: OK\n");
     vga_print("Memoire: Simulation OK\n");
-    vga_print("Interruptions: Simulation OK\n");
+    
+    interrupts_init();
+    vga_print("Interruptions: OK\n");
+    
+    keyboard_init();
+    vga_print("Clavier: OK\n");
+    
     vga_print("Ordonnanceur: Simulation OK\n");
     
     syscall_init();

@@ -107,7 +107,13 @@ $(BUILD_DIR)/vfs_test.o: fs/vfs_test.c | $(BUILD_DIR)
 $(BUILD_DIR)/shell.o: kernel/shell.c | $(BUILD_DIR)
 	x86_64-elf-gcc -m32 -fno-builtin -fno-stack-protector -nostdlib -c $< -o $@
 
-$(BUILD_DIR)/kernel_simple.elf: $(BUILD_DIR)/kernel_simple.o $(BUILD_DIR)/syscalls.o $(BUILD_DIR)/syscall_test.o $(BUILD_DIR)/shell.o | $(BUILD_DIR)
+$(BUILD_DIR)/keyboard.o: drivers/keyboard.c | $(BUILD_DIR)
+	x86_64-elf-gcc -m32 -fno-builtin -fno-stack-protector -nostdlib -c $< -o $@
+
+$(BUILD_DIR)/interrupts.o: kernel/interrupts.c | $(BUILD_DIR)
+	x86_64-elf-gcc -m32 -fno-builtin -fno-stack-protector -nostdlib -c $< -o $@
+
+$(BUILD_DIR)/kernel_simple.elf: $(BUILD_DIR)/kernel_simple.o $(BUILD_DIR)/syscalls.o $(BUILD_DIR)/syscall_test.o $(BUILD_DIR)/shell.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/interrupts.o | $(BUILD_DIR)
 	x86_64-elf-ld -m elf_i386 -T multiboot.ld -o $@ $^
 
 $(BUILD_DIR)/kernel_simple.bin: $(BUILD_DIR)/kernel_simple.elf | $(BUILD_DIR)
@@ -118,7 +124,7 @@ $(BUILD_DIR)/multiboot_boot.o: boot/multiboot_boot.s | $(BUILD_DIR)
 	x86_64-elf-as --32 $< -o $@
 
 # Créer le kernel avec bootloader intégré
-$(BUILD_DIR)/kernel_multiboot.elf: $(BUILD_DIR)/multiboot_boot.o $(BUILD_DIR)/kernel_simple.o $(BUILD_DIR)/syscalls.o $(BUILD_DIR)/syscall_test.o $(BUILD_DIR)/shell.o | $(BUILD_DIR)
+$(BUILD_DIR)/kernel_multiboot.elf: $(BUILD_DIR)/multiboot_boot.o $(BUILD_DIR)/kernel_simple.o $(BUILD_DIR)/syscalls.o $(BUILD_DIR)/syscall_test.o $(BUILD_DIR)/shell.o $(BUILD_DIR)/keyboard.o $(BUILD_DIR)/interrupts.o | $(BUILD_DIR)
 	x86_64-elf-ld -m elf_i386 -T multiboot.ld -o $@ $^
 
 # Créer l'image ISO bootable
