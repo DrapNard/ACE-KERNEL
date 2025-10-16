@@ -1,7 +1,7 @@
 /* Generic linker script for ACE Micro-Kernel */
 /* Works for 32-bit and 64-bit kernels */
 
-ENTRY(kernel_main)
+ENTRY(_start)
 
 SECTIONS
 {

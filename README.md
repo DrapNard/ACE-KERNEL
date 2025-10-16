@@ -1,195 +1,127 @@
 # ACE Micro-Kernel
 
-![Capture d’écran 2025-03-08 à 22 33 33](https://github.com/DALM1/ACE-KERNEL/blob/main/ACE-1.png)
+ACE is a teaching-oriented x86 kernel that boots through a Multiboot entry point,
+initialises a small set of core subsystems, and exposes a minimal shell for
+interaction. The repository has been reorganised to make the codebase easier to
+extend: sources live in `src/`, headers in `include/`, and a tiny freestanding
+standard library sits in `src/libk`.
 
-Un micro-kernel fonctionnel basé sur une architecture x86, développé en C et assembleur.
+## Features
 
-## Caractéristiques
+- Multiboot-compliant entry stub for QEMU and legacy BIOS.
+- VGA text-mode console with a lightweight `vga_printf`.
+- Keyboard interrupt driver and circular input buffer.
+- Heap allocator (`kmalloc`/`kfree`) with block coalescing.
+- Cooperative scheduler scaffold with an idle task.
+- Toy VFS layer with in-memory nodes and simple open/read/write helpers.
+- Basic syscall dispatcher piping to the kernel subsystems.
+- Interactive shell (`shell_run`) with commands backed by the VFS and heap.
+- Custom `libk` primitives (`k_memcpy`, `k_memset`, `k_memmove`, `k_memcmp`).
 
-### Architecture
-- **Micro-kernel** : Architecture modulaire avec composants séparés
-- **Mode protégé x86** : Fonctionnement en 32 bits
-- **Gestion mémoire** : Allocateur dynamique avec heap
-- **Ordonnanceur** : Round-robin avec gestion des processus
-- **Interruptions** : Gestion complète des IRQ et exceptions
-- **Drivers** : VGA, clavier, timer
+Enable in-kernel self-tests (syscalls + VFS smoke checks) with `SELFTEST=1` at
+build time.
 
-### Composants principaux
+## Build & Run
 
-#### Kernel Core (`kernel/`)
-- `main.c` : Point d'entrée et initialisation
-- `scheduler.c` : Ordonnanceur de processus
-- `interrupts.c` : Gestion des interruptions
+### Prerequisites
 
-#### Gestion Mémoire (`mm/`)
-- `memory.c` : Allocateur dynamique (kmalloc/kfree)
-- Heap de 1MB avec fusion automatique des blocs
+- Cross GCC toolchain (`i686-elf-*` or `x86_64-elf-*`).
+- GNU `ld`/`objcopy` matching the cross toolchain.
+- `qemu-system-i386` (or `qemu-system-x86_64` for 64-bit builds).
 
-#### Drivers (`drivers/`)
-- `vga.c` : Driver d'affichage VGA couleur
-- Support clavier avec table de conversion
-- Timer système pour l'ordonnanceur
-
-#### Boot (`boot/`)
-- `boot.s` : Bootloader minimal
-- Passage en mode protégé
-- Chargement de la GDT
-
-## Structure du projet
-
-```
-ACE/
-├── boot/           # Bootloader
-│   └── boot.s
-├── kernel/         # Noyau principal
-│   ├── main.c
-│   ├── scheduler.c
-│   └── interrupts.c
-├── drivers/        # Pilotes
-│   └── vga.c
-├── mm/            # Gestion mémoire
-│   └── memory.c
-├── include/       # Fichiers d'en-tête
-│   ├── kernel.h
-│   ├── memory.h
-│   ├── scheduler.h
-│   ├── interrupts.h
-│   └── vga.h
-├── build/         # Fichiers compilés
-├── Makefile       # Script de compilation
-├── linker.ld      # Script de liaison
-└── README.md      # Cette documentation
-```
-
-## Compilation
-
-### Prérequis
-- GCC avec support 32 bits
-- GNU Binutils (as, ld, objcopy)
-- Make
-- QEMU (optionnel, pour l'exécution)
-
-### Installation des dépendances
-
-**Ubuntu/Debian :**
-```bash
-sudo apt-get install gcc-multilib binutils make qemu-system-x86
-```
-
-**macOS :**
-```bash
-brew install i686-elf-gcc qemu
-```
-
-### Compilation
+### Commands
 
 ```bash
-# Compiler tout le projet
-make all
+# Build a 32-bit kernel (default)
+make
 
-# Créer une image disque bootable
-make iso
-
-# Exécuter avec QEMU
+# Run inside QEMU (serial output redirected to the terminal)
 make run
 
-# Nettoyer les fichiers générés
-make clean
+# Run with built-in self tests enabled
+make SELFTEST=1 run
+
+# Cross-compile for x86_64 (experimental)
+make BITS=64
 ```
 
-## Utilisation
+Build artefacts are placed under `build/` (`kernel.elf`, `kernel.bin`,
+`kernel.map`).
 
-### Exécution avec QEMU
+## Repository Layout
+
+```
+include/
+  ace/        # Shared types & macros
+  arch/x86/   # Port I/O helpers
+  core/       # Kernel-facing headers (scheduler, interrupts, ...)
+  drivers/    # Device interfaces (VGA, keyboard)
+  fs/         # VFS structures
+  libk/       # Kernel libc replacements
+  mm/         # Heap interface
+  shell/      # Shell API
+  sys/        # Syscall table and numbers
+  tests/      # Self-test declarations
+
+src/
+  arch/x86/boot/   # Multiboot entry (assembly)
+  core/            # Kernel subsystems (init, scheduler, shell, syscalls,...)
+  drivers/         # Driver implementations
+  fs/              # Virtual filesystem
+  libk/            # Freestanding libc helpers
+  mm/              # Heap allocator
+  tests/           # Optional runtime tests
+
+linker.ld          # Kernel linker script (loaded at 0x00100000)
+Makefile           # Recursive build over src/
+```
+
+## Shell Commands
+
+| Command | Description |
+|---------|-------------|
+| `help`  | List available commands |
+| `clear` | Clear VGA text buffer |
+| `echo`  | Echo arguments |
+| `ls [path]` | Enumerate VFS entries |
+| `cat <path>` | Dump a file |
+| `mkdir <path>` | Create directory |
+| `touch <path>` | Create empty file |
+| `rm <path>` | Unlink file or empty directory |
+| `mem` | Print heap statistics |
+| `ps`, `kill`, `uptime`, `exit` | Placeholders / future work |
+
+## Kernel Standard Library (`libk`)
+
+`libk` replaces the usual C library facilities that are unavailable in kernel
+space. The implementation is intentionally small:
+
+- `k_memcpy`, `k_memmove`, `k_memset`, `k_memcmp`
+- Optional helpers can be added here as the kernel grows (string handling, math
+  primitives, etc.).
+
+Include `<libk/mem.h>` and rely on the `ace/types.h` definitions instead of
+`<stdint.h>`/`<stddef.h>`.
+
+## Self Tests
+
+The `src/tests` directory contains runtime smoke tests for syscalls and the
+VFS. Compile them into the image by building with `SELFTEST=1`. During boot the
+kernel will output the test progress before dropping into the shell.
+
 ```bash
-make run
+make SELFTEST=1 run
 ```
 
-### Exécution avec VirtualBox
-1. Créer une nouvelle VM x86
-2. Utiliser `build/ace.img` comme disquette de boot
-3. Démarrer la VM
+## Next Steps
 
-### Fonctionnalités disponibles
-- **Affichage** : Messages du kernel en couleur
-- **Clavier** : Saisie de texte basique
-- **Processus** : Ordonnancement automatique
-- **Mémoire** : Allocation dynamique
-
-## Architecture technique
-
-### Initialisation
-1. **Bootloader** : Passage en mode protégé
-2. **Kernel** : Initialisation des sous-systèmes
-3. **VGA** : Configuration de l'affichage
-4. **Mémoire** : Initialisation du heap
-5. **Interruptions** : Configuration IDT et PIC
-6. **Ordonnanceur** : Création du processus idle
-
-### Gestion des processus
-- **États** : READY, RUNNING, BLOCKED, TERMINATED
-- **Algorithme** : Round-robin avec tranches de temps
-- **Contexte** : Sauvegarde des registres x86
-- **Pile** : 4KB par processus
-
-### Gestion mémoire
-- **Heap** : 1MB à partir de 0x100000
-- **Allocation** : First-fit avec division des blocs
-- **Libération** : Fusion automatique des blocs adjacents
-- **Alignement** : 4 bytes pour les performances
-
-### Interruptions
-- **IDT** : 256 entrées configurées
-- **PIC** : Remapping des IRQ (32-47)
-- **Timer** : IRQ0 pour l'ordonnanceur
-- **Clavier** : IRQ1 avec table de conversion
-
-## Développement
-
-### Ajouter un nouveau driver
-1. Créer le fichier dans `drivers/`
-2. Ajouter l'en-tête dans `include/`
-3. Initialiser dans `kernel_main()`
-4. Le Makefile détecte automatiquement
-
-### Ajouter un appel système
-1. Définir dans `include/syscalls.h`
-2. Implémenter dans `kernel/syscalls.c`
-3. Configurer l'interruption 0x80
-
-### Debug
-- Messages avec `vga_print()`
-- `kernel_panic()` pour les erreurs critiques
-- QEMU monitor pour l'inspection
-
-## Limitations actuelles
-
-- **Architecture** : x86 32 bits uniquement
-- **Système de fichiers** : Non implémenté
-- **Réseau** : Non supporté
-- **Mode utilisateur** : Tous les processus en mode kernel
-- **Pagination** : Gestion mémoire simplifiée
-
-## Roadmap
-
-- [ ] Système de fichiers VFS
-- [ ] Mode utilisateur et protection
-- [ ] Pagination mémoire
-- [ ] Drivers réseau
-- [ ] Shell interactif
-- [ ] Support multiprocesseur
-
-## Licence
-
-Ce projet est développé à des fins éducatives. Libre d'utilisation et de modification.
-
-## Contribution
-
-Les contributions sont les bienvenues ! Merci de :
-1. Fork le projet
-2. Créer une branche pour votre fonctionnalité
-3. Tester vos modifications
-4. Soumettre une pull request
+- Flesh out the scheduler (context switching + process table integration).
+- Back VFS nodes with real storage.
+- Replace polling shell input with event-driven tasks.
+- Expand `libk` with string/format helpers as required.
+- Reintroduce ISO generation (GRUB) as a dedicated target.
 
 ---
 
-**ACE Micro-Kernel** - Un kernel simple mais fonctionnel pour l'apprentissage des systèmes d'exploitation.
+ACE is designed as a learning playground. Explore, instrument, and extend the
+subsystems freely!
