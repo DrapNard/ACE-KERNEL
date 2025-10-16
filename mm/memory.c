@@ -1,6 +1,6 @@
 #include "../include/memory.h"
-#include "../include/vga.h"
-#include <stdio.h>
+#include "../drivers/vga/vga.h"
+
 
 // Gestionnaire de mémoire global
 static struct memory_manager mem_manager;
@@ -128,10 +128,10 @@ void* krealloc(void* ptr, u32 new_size) {
 
 // Afficher les informations mémoire
 void memory_info(void) {
-    printf("=== Informations Memoire ===\n");
-    printf("Memoire totale: %u bytes\n", mem_manager.total_memory);
-    printf("Memoire utilisee: %u bytes\n", mem_manager.used_memory);
-    printf("Memoire libre: %u bytes\n", mem_manager.free_memory);
+    vga_printf("=== Informations Memoire ===\n");
+    vga_printf("Memoire totale: %u bytes\n", mem_manager.total_memory);
+    vga_printf("Memoire utilisee: %u bytes\n", mem_manager.used_memory);
+    vga_printf("Memoire libre: %u bytes\n", mem_manager.free_memory);
 }
 
 // Fonctions utilitaires

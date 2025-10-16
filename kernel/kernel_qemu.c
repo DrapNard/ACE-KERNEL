@@ -11,7 +11,7 @@ typedef u32 size_t;
 #endif
 #endif
 
-#include "../include/vga.h"
+#include "../drivers/vga/vga.h"
 #include "../include/memory.h"
 #include "../include/scheduler.h"
 #include "../include/interrupts.h"
@@ -57,21 +57,22 @@ void kernel_main(void) {
     }
 }
 
+// Shuts down the kernel (infinite loop)
 void kernel_shutdown(void) {
+    vga_set_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
     vga_print("Arret du kernel...\n");
     while (1) {
-        // Boucle infinie
+        asm volatile ("hlt");  // Halt CPU
     }
 }
 
-// Fonction de panic du kernel
+// Handles kernel panics (infinite loop with error message)
 void kernel_panic(const char* message) {
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_RED);
     vga_print("\nKERNEL PANIC: ");
     vga_print(message);
     vga_print("\nSysteme arrete.\n");
-
-    while(1) {
-        // Arrêt du système
+    while (1) {
+        asm volatile ("hlt");  // Halt CPU
     }
 }

@@ -1,12 +1,13 @@
 #include "../include/scheduler.h"
 #include "../include/memory.h"
-#include "../include/vga.h"
+#include "../drivers/vga/vga.h"
 
 static struct scheduler main_scheduler;
 static int scheduler_initialized = 0;
 
 static void idle_process(void) {
     while (1) {
+        asm volatile("hlt");
         // Dans un vrai kernel x86: asm volatile("hlt");
         // Attendre une interruption - version simplifiée pour compilation
     }

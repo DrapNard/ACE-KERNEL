@@ -1,14 +1,13 @@
-/* Generic linker script for ACE Micro-Kernel */
-/* Works for 32-bit and 64-bit kernels */
+/* kernel/linker.ld - Kernel linker script for ACE Micro-Kernel */
 
 ENTRY(kernel_main)
 
 SECTIONS
 {
-    /* Load kernel at 1 MiB */
+    /* Kernel starts at 1 MB */
     . = 0x100000;
 
-    /* Text (code) */
+    /* Code section */
     .text ALIGN(4K) : {
         *(.multiboot)
         *(.text)
@@ -27,14 +26,13 @@ SECTIONS
         *(.data.*)
     }
 
-    /* Uninitialized data (BSS) */
+    /* BSS (zero-initialized data) */
     .bss ALIGN(4K) : {
         *(COMMON)
         *(.bss)
         *(.bss.*)
     }
 
-    /* Kernel end marker */
     kernel_end = .;
 
     /DISCARD/ : {

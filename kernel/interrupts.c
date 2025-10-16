@@ -1,5 +1,5 @@
 #include "../include/interrupts.h"
-#include "../include/vga.h"
+#include "../drivers/vga/vga.h"
 #include "../include/scheduler.h"
 
 // Table des descripteurs d'interruption
@@ -16,14 +16,14 @@ static u32 timer_ticks = 0;
 static inline void outb(u16 port, u8 value) {
     (void)port; (void)value; // Éviter les warnings
     // Dans un vrai kernel, on utiliserait l'assembleur inline
-    // asm volatile("outb %0, %1" :: "a"(value), "Nd"(port));
+    asm volatile("outb %0, %1" :: "a"(value), "Nd"(port));
 }
 
 static inline u8 inb(u16 port) {
     (void)port; // Éviter les warnings
     // Dans un vrai kernel, on utiliserait l'assembleur inline
-    // u8 result;
-    // asm volatile("inb %1, %0" : "=a"(result) : "Nd"(port));
+    u8 result;
+    asm volatile("inb %1, %0" : "=a"(result) : "Nd"(port));
     return 0; // Valeur par défaut pour la compilation
 }
 
@@ -104,13 +104,15 @@ void set_interrupt_handler(u8 interrupt, interrupt_handler_t handler) {
 
 // Activer les interruptions
 void enable_interrupts(void) {
-    // Dans un vrai kernel x86: asm volatile("sti");
+    // Dans un vrai kernel x86: 
+    asm volatile("sti");
     // Version simplifiée pour compilation
 }
 
 // Désactiver les interruptions
 void disable_interrupts(void) {
-    // Dans un vrai kernel x86: asm volatile("cli");
+    // Dans un vrai kernel x86: 
+    asm volatile("cli");
     // Version simplifiée pour compilation
 }
 
