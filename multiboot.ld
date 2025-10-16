@@ -4,23 +4,25 @@ SECTIONS
 {
     . = 0x100000;
     
-    .multiboot :
+    .text : ALIGN(4K)
     {
         *(.multiboot)
-    }
-    
-    .text :
-    {
         *(.text)
     }
     
-    .data :
+    .rodata : ALIGN(4K)
+    {
+        *(.rodata)
+    }
+    
+    .data : ALIGN(4K)
     {
         *(.data)
     }
     
-    .bss :
+    .bss : ALIGN(4K)
     {
+        *(COMMON)
         *(.bss)
     }
 }

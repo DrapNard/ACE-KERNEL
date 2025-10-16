@@ -66,9 +66,12 @@ void vga_print(const char* str) {
 
 void kernel_main();
 
-void _start() {
-    kernel_main();
-}
+void syscall_init();
+void test_syscalls();
+void shell_init();
+void shell_run();
+void interrupts_init();
+void keyboard_init();
 
 void kernel_main() {
     vga_clear();
@@ -78,8 +81,17 @@ void kernel_main() {
 
     vga_print("VGA: OK\n");
     vga_print("Memoire: Simulation OK\n");
-    vga_print("Interruptions: Simulation OK\n");
+    
+    interrupts_init();
+    vga_print("Interruptions: OK\n");
+    
+    keyboard_init();
+    vga_print("Clavier: OK\n");
+    
     vga_print("Ordonnanceur: Simulation OK\n");
+    
+    syscall_init();
+    vga_print("Appels systeme: OK\n");
 
     vga_print("\nTest d'allocation memoire:\n");
     vga_print("- Allocation 1024 octets: OK\n");
@@ -90,6 +102,16 @@ void kernel_main() {
     vga_print("- Memoire totale: 32 MB\n");
     vga_print("- Memoire utilisee: 4 KB\n");
     vga_print("- Memoire libre: 32764 KB\n");
+    
+    test_syscalls();
+
+    vga_print("\nSysteme de fichiers VFS: Implemente\n");
+
+    vga_print("\nInitialisation du shell...\n");
+    shell_init();
+    
+    vga_print("Demarrage du shell...\n");
+    shell_run();
 
     vga_print("\n=== ACE Kernel ===\n");
     vga_print("Kernel en attente\n");
