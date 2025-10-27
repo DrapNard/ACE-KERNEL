@@ -357,3 +357,4 @@ file_descriptor_t* vfs_get_fd(int fd) {
     if (file_descriptors[fd].node == 0) return 0;
     return &file_descriptors[fd];
 }
+

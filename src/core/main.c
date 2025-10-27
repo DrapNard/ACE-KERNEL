@@ -4,9 +4,13 @@
 #include "drivers/keyboard.h"
 #include "drivers/vga.h"
 #include "fs/vfs.h"
+#include "fs/simplefs.h"
 #include "mm/heap.h"
 #include "shell/shell.h"
 #include "sys/syscalls.h"
+#include "shell/modules/fs_module.h"
+#include "shell/modules/sys_module.h"
+#include "shell/modules/syscall_module.h"
 #include "tests/selftest.h"
 
 static void kernel_banner(void) {
@@ -45,6 +49,9 @@ void kernel_main(void) {
     vfs_init();
     vga_printf("[fs] virtual filesystem ready\n");
 
+    simplefs_init();
+    vga_printf("[fs] real filesystem ready\n");
+
     keyboard_init();
     vga_printf("[drv] keyboard controller registered\n");
 
@@ -56,6 +63,9 @@ void kernel_main(void) {
 #endif
 
     shell_init();
+    shell_register_module(&fs_shell_module);
+    shell_register_module(&sys_shell_module);
+    shell_register_module(&syscall_shell_module);
     kernel_ready();
 
     shell_run();

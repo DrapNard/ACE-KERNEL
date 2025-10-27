@@ -3,6 +3,12 @@
 #include "core/interrupts.h"
 #include "arch/x86/io.h"
 
+// Add these definitions or include the PIC header
+#define PIC1_COMMAND    0x20
+#define PIC1_DATA       0x21
+#define PIC2_COMMAND    0xA0
+#define PIC2_DATA       0xA1
+
 // Ports du contrôleur clavier
 #define KEYBOARD_DATA_PORT 0x60
 #define KEYBOARD_STATUS_PORT 0x64
@@ -32,7 +38,7 @@ static char scancode_to_ascii_shift[128] = {
     '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
     0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0,
     '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '*',
-    0, ' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, ' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -85,7 +91,9 @@ static void keyboard_poll(void) {
 void keyboard_interrupt_handler(struct interrupt_frame* frame) {
     (void)frame;
     keyboard_poll();
-    outb(PIC1_COMMAND, 0x20);
+    
+    // Send EOI to PIC (keyboard is on IRQ1)
+    outb(0x20, 0x20);  // Send EOI to master PIC
 }
 
 // Initialiser le driver clavier

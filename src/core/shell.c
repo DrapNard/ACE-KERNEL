@@ -1,13 +1,11 @@
-#include "core/kernel.h"
 #include "shell/shell.h"
+#include "shell/string_utils.h"
 #include "drivers/vga.h"
 #include "drivers/keyboard.h"
 #include "fs/vfs.h"
 #include "mm/heap.h"
 
-static shell_state_t shell_state;
-static shell_command_t commands[MAX_COMMANDS];
-static u32 command_count = 0;
+static shell_state_t shell_state = {0};
 
 static void normalize_path(const char* input, char* output) {
     u32 idx = 0;
@@ -30,49 +28,123 @@ static void normalize_path(const char* input, char* output) {
 }
 
 void shell_init() {
+    if (shell_state.initialized) return;
+    
+    // Initialize shell state
     shell_state.position = 0;
     shell_state.history_index = 0;
+    shell_state.command_count = 0;
+    shell_state.module_count = 0;
+    shell_state.modules = NULL;
 
     for (int i = 0; i < 10; i++) {
         shell_state.history[i][0] = 0;
     }
 
-    shell_register_command("help", "Affiche la liste des commandes", cmd_help);
-    shell_register_command("clear", "Efface l'ecran", cmd_clear);
-    shell_register_command("echo", "Affiche du texte", cmd_echo);
-    shell_register_command("ls", "Liste les fichiers", cmd_ls);
-    shell_register_command("cat", "Affiche le contenu d'un fichier", cmd_cat);
-    shell_register_command("mkdir", "Cree un repertoire", cmd_mkdir);
-    shell_register_command("touch", "Cree un fichier", cmd_touch);
-    shell_register_command("rm", "Supprime un fichier", cmd_rm);
-    shell_register_command("ps", "Liste les processus", cmd_ps);
-    shell_register_command("kill", "Termine un processus", cmd_kill);
-    shell_register_command("mem", "Affiche l'utilisation memoire", cmd_mem);
-    shell_register_command("uptime", "Affiche le temps de fonctionnement", cmd_uptime);
-    shell_register_command("exit", "Quitte le shell", cmd_exit);
+    // Register built-in commands
+    shell_register_command("help", "Affiche la liste des commandes", cmd_help, CMD_FLAG_INTERNAL);
+    shell_register_command("clear", "Efface l'ecran", cmd_clear, CMD_FLAG_INTERNAL);
+    shell_register_command("echo", "Affiche du texte", cmd_echo, CMD_FLAG_INTERNAL);
+    shell_register_command("ls", "Liste les fichiers", cmd_ls, CMD_FLAG_INTERNAL);
+    shell_register_command("cat", "Affiche le contenu d'un fichier", cmd_cat, CMD_FLAG_INTERNAL);
+    shell_register_command("mkdir", "Cree un repertoire", cmd_mkdir, CMD_FLAG_INTERNAL);
+    shell_register_command("touch", "Cree un fichier", cmd_touch, CMD_FLAG_INTERNAL);
+    shell_register_command("rm", "Supprime un fichier", cmd_rm, CMD_FLAG_INTERNAL);
+    shell_register_command("ps", "Liste les processus", cmd_ps, CMD_FLAG_INTERNAL);
+    shell_register_command("kill", "Termine un processus", cmd_kill, CMD_FLAG_INTERNAL);
+    shell_register_command("mem", "Affiche l'utilisation memoire", cmd_mem, CMD_FLAG_INTERNAL);
+    shell_register_command("uptime", "Affiche le temps de fonctionnement", cmd_uptime, CMD_FLAG_INTERNAL);
+    shell_register_command("exit", "Quitte le shell", cmd_exit, CMD_FLAG_INTERNAL);
+    shell_register_command("modules", "Liste les modules shell", cmd_modules, CMD_FLAG_INTERNAL);
 
+    shell_state.initialized = true;
     vga_print("Shell ACE initialise\n");
 }
 
-void shell_register_command(char* name, char* description, int (*handler)(int argc, char* argv[])) {
-    if (command_count >= MAX_COMMANDS) return;
+void shell_register_command(const char* name, const char* description, 
+                           int (*handler)(int argc, char* argv[]), u32 flags) {
+    if (!name || !handler || shell_state.command_count >= MAX_COMMANDS) return;
 
-    int i = 0;
+    u32 idx = shell_state.command_count;
+    
+    // Copy name
+    u32 i = 0;
     while (name[i] && i < 31) {
-        commands[command_count].name[i] = name[i];
+        shell_state.commands[idx].name[i] = name[i];
         i++;
     }
-    commands[command_count].name[i] = 0;
+    shell_state.commands[idx].name[i] = 0;
 
+    // Copy description
     i = 0;
-    while (description[i] && i < 127) {
-        commands[command_count].description[i] = description[i];
+    while (description && description[i] && i < 127) {
+        shell_state.commands[idx].description[i] = description[i];
         i++;
     }
-    commands[command_count].description[i] = 0;
+    shell_state.commands[idx].description[i] = 0;
 
-    commands[command_count].handler = handler;
-    command_count++;
+    shell_state.commands[idx].handler = handler;
+    shell_state.commands[idx].flags = flags;
+    shell_state.command_count++;
+}
+
+void shell_unregister_command(const char* name) {
+    if (!name) return;
+
+    for (u32 i = 0; i < shell_state.command_count; i++) {
+        if (strings_equal(shell_state.commands[i].name, name)) {
+            // Shift remaining commands down
+            for (u32 j = i; j < shell_state.command_count - 1; j++) {
+                shell_state.commands[j] = shell_state.commands[j + 1];
+            }
+            shell_state.command_count--;
+            return;
+        }
+    }
+}
+
+int shell_register_module(shell_module_t* module) {
+    if (!module || shell_state.module_count >= MAX_MODULES) return -1;
+
+    // Add module to the linked list
+    module->next = shell_state.modules;
+    shell_state.modules = module;
+    shell_state.module_count++;
+
+    // Initialize the module
+    if (module->init) {
+        return module->init();
+    }
+    return 0;
+}
+
+int shell_unregister_module(const char* name) {
+    if (!name) return -1;
+
+    shell_module_t* current = shell_state.modules;
+    shell_module_t* prev = NULL;
+
+    while (current) {
+        if (strings_equal(current->name, name)) {
+            // Cleanup the module
+            if (current->cleanup) {
+                current->cleanup();
+            }
+
+            // Remove from linked list
+            if (prev) {
+                prev->next = current->next;
+            } else {
+                shell_state.modules = current->next;
+            }
+
+            shell_state.module_count--;
+            return 0;
+        }
+        prev = current;
+        current = current->next;
+    }
+    return -1;
 }
 
 void shell_print_prompt() {
@@ -84,32 +156,49 @@ void shell_clear_buffer() {
     shell_state.buffer[0] = 0;
 }
 
+void shell_add_to_history(const char* command) {
+    if (!command) return;
+    
+    u32 idx = shell_state.history_index % 10;
+    copy_string(shell_state.history[idx], command, SHELL_BUFFER_SIZE);
+    shell_state.history_index++;
+}
+
+void shell_show_history() {
+    for (int i = 0; i < 10; i++) {
+        if (shell_state.history[i][0] != 0) {
+            vga_print(shell_state.history[i]);
+            vga_print("\n");
+        }
+    }
+}
+
 void shell_run() {
     vga_print("\n=== Shell ACE ===\n");
-    vga_print("Tapez 'help' pour voir les commandes disponibles\n\n");
+    vga_print("Tapez 'help' pour voir les commandes disponibles\n");
+    vga_print("Tapez 'modules' pour voir les modules disponibles\n\n");
     
     char input_buffer[256];
     
     while (1) {
         shell_print_prompt();
         
-        // Lire une ligne de commande avec le driver clavier
         int len = keyboard_readline(input_buffer, sizeof(input_buffer));
         
         if (len > 0) {
             vga_print("\n");
+            shell_add_to_history(input_buffer);
             int rc = shell_execute_command(input_buffer);
             vga_print("\n");
             if (rc > 0) {
-                return;
+                break; // Exit requested
             }
         } else {
             vga_print("\n");
         }
     }
 
-    // Retour au kernel principal
-    return;
+    vga_print("Retour au kernel...\n");
 }
 
 int shell_execute_command(char* command) {
@@ -123,16 +212,10 @@ int shell_execute_command(char* command) {
         return 0;
     }
 
-    for (u32 i = 0; i < command_count; i++) {
-        int match = 1;
-        for (int j = 0; argv[0][j] || commands[i].name[j]; j++) {
-            if (argv[0][j] != commands[i].name[j]) {
-                match = 0;
-                break;
-            }
-        }
-        if (match) {
-            return commands[i].handler(argc, argv);
+    // Search for command in registered commands
+    for (u32 i = 0; i < shell_state.command_count; i++) {
+        if (strings_equal(argv[0], shell_state.commands[i].name)) {
+            return shell_state.commands[i].handler(argc, argv);
         }
     }
 
@@ -164,16 +247,20 @@ int shell_parse_command(char* command, char* argv[]) {
     return argc;
 }
 
+// Built-in command implementations
 int cmd_help(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
 
     vga_print("Commandes disponibles:\n");
-    for (u32 i = 0; i < command_count; i++) {
+    for (u32 i = 0; i < shell_state.command_count; i++) {
+        // Skip hidden commands
+        if (shell_state.commands[i].flags & CMD_FLAG_HIDDEN) continue;
+        
         vga_print("  ");
-        vga_print(commands[i].name);
+        vga_print(shell_state.commands[i].name);
         vga_print(" - ");
-        vga_print(commands[i].description);
+        vga_print(shell_state.commands[i].description);
         vga_print("\n");
     }
     return 0;
@@ -357,5 +444,31 @@ int cmd_exit(int argc, char* argv[]) {
     (void)argv;
 
     vga_print("Arret du shell...\n");
-    return 1;
+    return 1; // Return 1 to exit shell
+}
+
+int cmd_modules(int argc, char* argv[]) {
+    (void)argc;
+    (void)argv;
+
+    vga_print("Modules shell charges:\n");
+    shell_module_t* current = shell_state.modules;
+    u32 count = 0;
+    
+    while (current) {
+        vga_print("  [");
+        vga_print(current->name);
+        vga_print("] - ");
+        vga_print(current->description);
+        vga_print("\n");
+        current = current->next;
+        count++;
+    }
+    
+    if (count == 0) {
+        vga_print("  Aucun module charge\n");
+    }
+    
+    vga_printf("Total: %u modules\n", count);
+    return 0;
 }

@@ -3,6 +3,7 @@
 #include "core/scheduler.h"
 #include "drivers/vga.h"
 #include "arch/x86/io.h"
+#include "drivers/keyboard.h"  // Add this for keyboard_interrupt_handler
 
 // Table des descripteurs d'interruption
 static struct idt_entry idt[IDT_SIZE];
@@ -16,38 +17,17 @@ static u32 timer_ticks = 0;
 
 // Configurer une entrée IDT
 static void set_idt_entry(u8 num, u32 base, u16 sel, u8 flags) {
+    // Since u8 can only hold 0-255, the check is redundant but kept for safety
+    if (num >= IDT_SIZE) {
+        kernel_panic("Invalid IDT entry number");
+        return;
+    }
+    
     idt[num].offset_low = base & 0xFFFF;
     idt[num].offset_high = (base >> 16) & 0xFFFF;
     idt[num].selector = sel;
     idt[num].zero = 0;
     idt[num].type_attr = flags;
-}
-
-// Remapper les PICs
-static void remap_pics(void) {
-    // Sauvegarder les masques
-    u8 mask1 = inb(PIC1_DATA);
-    u8 mask2 = inb(PIC2_DATA);
-    
-    // Initialiser les PICs
-    outb(PIC1_COMMAND, 0x11); // Commande d'initialisation
-    outb(PIC2_COMMAND, 0x11);
-    
-    // Définir les offsets des vecteurs d'interruption
-    outb(PIC1_DATA, 0x20); // PIC1 commence à 0x20 (32)
-    outb(PIC2_DATA, 0x28); // PIC2 commence à 0x28 (40)
-    
-    // Configuration en cascade
-    outb(PIC1_DATA, 0x04); // PIC1 a un esclave sur IRQ2
-    outb(PIC2_DATA, 0x02); // PIC2 est l'esclave
-    
-    // Mode 8086
-    outb(PIC1_DATA, 0x01);
-    outb(PIC2_DATA, 0x01);
-    
-    // Restaurer les masques
-    outb(PIC1_DATA, mask1);
-    outb(PIC2_DATA, mask2);
 }
 
 // Initialiser les interruptions
@@ -58,50 +38,77 @@ void interrupts_init(void) {
     }
     
     // Remapper les PICs
-    remap_pics();
+    pic_remap(0x20, 0x28);  // Remap to 32-47
     
-    // Configurer l'IDT (version simplifiée)
-    // Dans un vrai kernel, on aurait des stubs assembleur pour chaque interruption
-    for (int i = 0; i < IDT_SIZE; i++) {
-        set_idt_entry(i, (u32)default_interrupt_handler, 0x08, 0x8E);
-    }
-    
+    // Configurer l'IDT avec les stubs d'assemblage
+    set_idt_entry(0, (u32)isr0, 0x08, 0x8E);   // Divide by zero
+    set_idt_entry(1, (u32)isr1, 0x08, 0x8E);   // Debug
+    set_idt_entry(2, (u32)isr2, 0x08, 0x8E);   // NMI
+    set_idt_entry(3, (u32)isr3, 0x08, 0x8E);   // Breakpoint
+    set_idt_entry(4, (u32)isr4, 0x08, 0x8E);   // Overflow
+    set_idt_entry(5, (u32)isr5, 0x08, 0x8E);   // Bounds
+    set_idt_entry(6, (u32)isr6, 0x08, 0x8E);   // Invalid opcode
+    set_idt_entry(7, (u32)isr7, 0x08, 0x8E);   // Device not available
+    set_idt_entry(8, (u32)isr8, 0x08, 0x8E);   // Double fault
+    set_idt_entry(9, (u32)isr9, 0x08, 0x8E);   // Coprocessor segment overrun
+    set_idt_entry(10, (u32)isr10, 0x08, 0x8E); // Invalid TSS
+    set_idt_entry(11, (u32)isr11, 0x08, 0x8E); // Segment not present
+    set_idt_entry(12, (u32)isr12, 0x08, 0x8E); // Stack segment fault
+    set_idt_entry(13, (u32)isr13, 0x08, 0x8E); // General protection fault
+    set_idt_entry(14, (u32)isr14, 0x08, 0x8E); // Page fault
+    set_idt_entry(16, (u32)isr16, 0x08, 0x8E); // x87 floating point exception
+    set_idt_entry(17, (u32)isr17, 0x08, 0x8E); // Alignment check
+    set_idt_entry(18, (u32)isr18, 0x08, 0x8E); // Machine check
+    set_idt_entry(19, (u32)isr19, 0x08, 0x8E); // SIMD floating point exception
+
+    // IRQ handlers
+    set_idt_entry(32, (u32)irq0, 0x08, 0x8E);  // Timer
+    set_idt_entry(33, (u32)irq1, 0x08, 0x8E);  // Keyboard
+    set_idt_entry(34, (u32)irq2, 0x08, 0x8E);  // Cascade
+    set_idt_entry(35, (u32)irq3, 0x08, 0x8E);  // COM2
+    set_idt_entry(36, (u32)irq4, 0x08, 0x8E);  // COM1
+    set_idt_entry(37, (u32)irq5, 0x08, 0x8E);  // LPT2
+    set_idt_entry(38, (u32)irq6, 0x08, 0x8E);  // Floppy disk
+    set_idt_entry(39, (u32)irq7, 0x08, 0x8E);  // LPT1
+    set_idt_entry(40, (u32)irq8, 0x08, 0x8E);  // RTC
+    set_idt_entry(41, (u32)irq9, 0x08, 0x8E);  // Free
+    set_idt_entry(42, (u32)irq10, 0x08, 0x8E); // Free
+    set_idt_entry(43, (u32)irq11, 0x08, 0x8E); // Free
+    set_idt_entry(44, (u32)irq12, 0x08, 0x8E); // PS2 Mouse
+    set_idt_entry(45, (u32)irq13, 0x08, 0x8E); // FPU
+    set_idt_entry(46, (u32)irq14, 0x08, 0x8E); // Primary IDE
+    set_idt_entry(47, (u32)irq15, 0x08, 0x8E); // Secondary IDE
+
     // Configurer des interruptions spécifiques
-    set_interrupt_handler(32, timer_interrupt_handler);    // Timer (IRQ0)
-    set_interrupt_handler(33, keyboard_interrupt_handler); // Clavier (IRQ1)
+    set_interrupt_handler(32, timer_interrupt_handler);
+    set_interrupt_handler(33, keyboard_interrupt_handler);  // Make sure this exists in keyboard.c
     
     // Configurer le pointeur IDT
     idt_pointer.limit = sizeof(idt) - 1;
     idt_pointer.base = (u32)&idt;
     
-    // Charger l'IDT (version simplifiée pour compilation)
-    // Dans un vrai kernel x86, on utiliserait: asm volatile("lidt %0" : : "m"(idt_pointer));
-    // Pour l'instant, on simule juste le chargement
-    (void)idt_pointer;
-    
-    // Les interruptions restent désactivées tant que les stubs assembleur ne
-    // sont pas en place. Appelez enable_interrupts() explicitement une fois
-    // que des gestionnaires bas niveau existent.
+    // Charger l'IDT
+    load_idt(&idt_pointer);
 }
 
 // Définir un gestionnaire d'interruption
 void set_interrupt_handler(u8 interrupt, interrupt_handler_t handler) {
-    // u8 est toujours < 256, donc pas besoin de vérifier
+    // u8 can only be 0-255, so this check is redundant but kept for clarity
+    if (interrupt >= IDT_SIZE) {
+        kernel_panic("Invalid interrupt number");
+        return;
+    }
     interrupt_handlers[interrupt] = handler;
 }
 
 // Activer les interruptions
 void enable_interrupts(void) {
-    // Dans un vrai kernel x86: 
-    asm volatile("sti");
-    // Version simplifiée pour compilation
+    enable_interrupts_asm();
 }
 
 // Désactiver les interruptions
 void disable_interrupts(void) {
-    // Dans un vrai kernel x86: 
-    asm volatile("cli");
-    // Version simplifiée pour compilation
+    disable_interrupts_asm();
 }
 
 // Gestionnaire d'interruption par défaut
@@ -123,10 +130,7 @@ void default_interrupt_handler(struct interrupt_frame* frame) {
     }
 
     if (vector >= 32 && vector < 48) {
-        if (vector >= 40) {
-            outb(PIC2_COMMAND, 0x20);
-        }
-        outb(PIC1_COMMAND, 0x20);
+        pic_send_eoi(vector - 32);
     }
 }
 
@@ -138,30 +142,5 @@ void timer_interrupt_handler(struct interrupt_frame* frame) {
         scheduler_run();
     }
 
-    outb(PIC1_COMMAND, 0x20);
-}
-
-// Le gestionnaire clavier est maintenant dans drivers/keyboard.c
-
-// Stubs assembleur simplifiés (normalement dans un fichier .s séparé)
-// Ces fonctions devraient être implémentées en assembleur
-void load_idt(struct idt_ptr* idt_ptr) {
-    // Dans un vrai kernel x86: asm volatile("lidt %0" : : "m"(*idt_ptr));
-    (void)idt_ptr; // Version simplifiée pour compilation
-}
-
-void isr0(void) {
-    // Stub pour ISR 0
-}
-
-void isr1(void) {
-    // Stub pour ISR 1
-}
-
-void irq0(void) {
-    // Stub pour IRQ 0 (timer)
-}
-
-void irq1(void) {
-    // Stub pour IRQ 1 (clavier)
+    pic_send_eoi(0);  // IRQ0 = timer
 }

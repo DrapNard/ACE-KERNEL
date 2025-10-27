@@ -82,5 +82,4 @@ int vfs_unlink(char* path);
 
 vfs_node_t* vfs_get_root();
 file_descriptor_t* vfs_get_fd(int fd);
-
 #endif /* FS_VFS_H */
